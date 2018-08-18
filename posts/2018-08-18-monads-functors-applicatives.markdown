@@ -17,6 +17,12 @@ fundamentals.
 The whole with functional programming being composition of function, I
 will divide this post in sections based on this idea.
 
+We can see in
+[Hackage](http://hackage.haskell.org/package/base-4.11.0.0/docs/Prelude.html#g:10)
+what are the types implementing a Functor already available in the
+Prelude. There are many: lists, Maybe, IO, Sum, Product, ZipList,
+Last, Max, etc.
+
 ---
 
 # Composing functions returning values
@@ -103,7 +109,7 @@ Prelude> (triple . double) <$> 4
 
 ```
 
-# Composing functions with wrapped values on both sides
+# Composing functions with multiple wrapped values
 
 Now with wrapped values only, we got two wrapped values, we want to add it:
 ```
@@ -125,14 +131,21 @@ Prelude> pure double <*> [1,2,3]
 ```
 Nice!
 
-We can see in
-[Hackage](http://hackage.haskell.org/package/base-4.11.0.0/docs/Prelude.html#g:10)
-what are the types implementing a Functor already available in the
-Prelude. There are many: lists, Maybe, IO, Sum, Product, ZipList,
-Last, Max, etc.
 
-:warning: I still need more experience to get a better grasp of real
-world uses of applicatives to write something non trivial and useful.
+So let's see a more practical use case of applicative functors. Let's
+say our `double` function now takes 2 arguments. I want to apply to it
+multiple wrapped arguments. We redefine the double function so that it
+takes 2 arguments, and then we apply to this function 2 arguments with
+`<*>`.
+
+```
+Prelude> double x y = x * y
+Prelude> pure double <*> Just 2 <*> Just 6
+Just 12
+```
+
+I still have to figure out useful ways to use pure and the `<*>` operator.
+
 
 # Composing functions returning wrapped values
 
