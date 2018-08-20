@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link href="//cdn.muicss.com/mui-0.9.39/css/mui.min.css" rel="stylesheet" type="text/css" />
+        <script src="//cdn.muicss.com/mui-0.9.39/js/mui.min.js"></script>
+        <title>Blog - Basics about functors</title>
+        <link rel="stylesheet" href="../css/default.css" />
+    </head>
+    <body>
+        <header>
+            <div id="sidebar">
+                <div class="mui--text-light mui--text-display1 mui--align-vertical">
+                    <a href="../">Yet Another Blog</a>
+                </div>
+            </div>
+            <table width="50%">
+            <tr style="vertical-align:middle;">
+                <td class="mui--appbar-height"><a href="../">Home</a></td>
+                <td class="mui--appbar-height"><a href="../about.html">About</a></td>
+                <td class="mui--appbar-height"><a href="../contact.html">Contact</a></td>
+                <td class="mui--appbar-height"><a href="../archive.html">Archive</a></td>
+            </tr>
+            </table>
+        </header>
+
+        <main role="main">
+          <div class="mui-container">
+            <h1>Basics about functors</h1>
+            <article>
+    <section class="header">
+        Posted on August 19, 2018
+        
+    </section>
+    <section>
+        <h1 id="managing-a-global-state">Managing a global state</h1>
+<h1 id="getting-data-from-the-command-line">Getting data from the command line</h1>
+<p>If we look at the <a href="https://wiki.haskell.org/State_Monad">Haskell Wiki: State Monad</a>, we can get an overview of how the State monad is implemented and how it works. Yet better, <a href="https://www.youtube.com/watch?v=thyO6p2bMAc">the talk of Phil Freeman on Mutable State in Haskell</a>, which explains it very wel. So basically under the hood, the state is passed as an argument to a function and is returned at the end to keep track of any update we did with it. Also a good post on <a href="https://stackoverflow.com/questions/13536761/what-other-ways-can-state-be-handled-in-a-pure-functional-language-besides-with">StackOverflow</a> explains it.</p>
+<p>The idea itself being quite simple, I didn’t use the monad and implemented a simple data type myself like this:</p>
+<pre><code>data State = State { connectedUsers :: Int
+                   , sockets :: [SockAddr]
+                   }</code></pre>
+<p>I will keep track of all users who connected to our TCP server, and all sockets as well. I will create also a function to initialize our state like this:</p>
+<pre><code>initState :: State
+initState = State 0 []</code></pre>
+<p>Then, inside my main loop where the server runs (see the <a href="https://wiki.haskell.org/Implement_a_chat_server">Wiki</a> for more details about the implementation of a basic TCP server), I will update my global state by passing it as an argument. As we can see in the function signature, we pass a Socket, a State, and it returns an IO operation.</p>
+<p>We print as well our state to give us an idea. So we print in the console any socket as a IP address and a port newly connected in a raw format as a list, and how many users have been connecting on our server.</p>
+<pre><code>mainLoop :: Socket -&gt; State -&gt; IO ()
+mainLoop sock state = do
+  conn &lt;- accept sock
+
+  let ip = snd conn
+  putStrLn $ &quot;[+] New connection: &quot; ++ show ip
+  let updatedState = State { connectedUsers = currentUsers + 1, sockets = currentSockets ++ [ip]}
+  putStrLn $ &quot;[+] State updated:\nUsers connected: &quot; ++ show (connectedUsers updatedState) ++ &quot;\nSockets connected: &quot;++ show (sockets updatedState)
+  forkIO (runConn conn)
+  mainLoop sock updatedState
+  where
+    currentUsers = connectedUsers state
+    currentSockets = sockets state</code></pre>
+<p>For the runConn function, just see below the whole source code.</p>
+<h1 id="fun-with-applicatives-and-global-state">Fun with applicatives and global state</h1>
+<p>Once it is done, just for fun we make an ip and a port configurable from the command line (TODO: I still have to figure out how to convert from a String to a Word32).</p>
+<pre><code>data WebServerOptions = WebServerOptions
+  { ip :: String
+  , port :: PortNumber
+  }
+
+
+serverOptions :: Parser WebServerOptions
+serverOptions = WebServerOptions
+    &lt;$&gt; strOption
+        ( long &quot;ip&quot;
+        &lt;&gt; short 'i'
+        &lt;&gt; help &quot;IPv4 address of your server&quot;
+        &lt;&gt; showDefault
+        &lt;&gt; value &quot;127.0.0.1&quot;
+        &lt;&gt; metavar &quot;STRING&quot;)
+    &lt;*&gt; option auto
+        ( long &quot;port&quot;
+        &lt;&gt; short 'p'
+        &lt;&gt; help &quot;A port where the server will listen to&quot;
+        &lt;&gt; showDefault
+        &lt;&gt; value 4000
+        &lt;&gt; metavar &quot;INT&quot;)
+
+</code></pre>
+<p>Then in the main function, we get our arguments passed on the command line (so an ip address and/or a port), and just use the default provided if nothing is passed.</p>
+<p>We initialize there our global state, we pass it to the mainLoop, thats’s all.</p>
+<pre><code>main :: IO ()
+main = do
+  config &lt;- execParser opts
+  let userPort = port config
+  sock &lt;- socket AF_INET Stream 0
+  setSocketOption sock ReuseAddr 1
+  bind sock (SockAddrInet userPort iNADDR_ANY)
+  listen sock 2
+  putStrLn $ &quot;Listening for connections on port &quot; ++ show userPort ++ &quot;...&quot;
+  mainLoop sock initState
+
+  where
+  opts = info (serverOptions &lt;**&gt; helper)
+      ( fullDesc
+      &lt;&gt; progDesc &quot;Run a web server&quot;
+      &lt;&gt; header &quot;A command line application to run a TCP server on a given port.&quot; )</code></pre>
+<p>When we run it from the command line, we get an output like this:</p>
+<pre><code>$ stack exec ghc app/Main.hs &amp;&amp; app/Main -p 5000
+[1 of 1] Compiling Main             ( app/Main.hs, app/Main.o )
+Linking app/Main ...
+Listening for connections on port 5000...
+</code></pre>
+<p>As you can see I passed the port <code>5000</code> as a command line argument. Then I connect to my server with Telnet</p>
+<pre><code>telnet localhost 5000
+Trying 127.0.0.1...
+Connected to localhost.
+Escape character is '^]'.
+Hello!
+Connection closed by foreign host.</code></pre>
+<p>And then, from the server I get the output below:</p>
+<pre><code>[+] New connection: 127.0.0.1:44102
+[+] State updated:
+Users connected: 1
+Sockets connected: [127.0.0.1:44102]
+[+] New connection: 127.0.0.1:44104
+[+] State updated:
+Users connected: 2
+Sockets connected: [127.0.0.1:44102,127.0.0.1:44104]
+[+] New connection: 127.0.0.1:44106
+[+] State updated:
+Users connected: 3
+Sockets connected: [127.0.0.1:44102,127.0.0.1:44104,127.0.0.1:44106]</code></pre>
+<p>Basically the state gets updated, so any new socket keeps being added to the list in the state, and our number gets incremented as well. Quite and trivial example, still it reflects the basic idea of state management in Haskell.</p>
+<h1 id="whole-source-code">Whole source code</h1>
+<pre><code>module Main where
+
+import Control.Concurrent
+import Data.Semigroup ((&lt;&gt;))
+import Data.Tuple (snd)
+import Network.Socket
+import Options.Applicative
+import System.IO hiding (putStrLn)
+
+
+data State = State { connectedUsers :: Int
+                   , sockets :: [SockAddr]
+                   }
+
+
+data WebServerOptions = WebServerOptions
+  { ip :: String
+  , port :: PortNumber
+  }
+
+
+serverOptions :: Parser WebServerOptions
+serverOptions = WebServerOptions
+    &lt;$&gt; strOption
+        ( long &quot;ip&quot;
+        &lt;&gt; short 'i'
+        &lt;&gt; help &quot;IPv4 address of your server&quot;
+        &lt;&gt; showDefault
+        &lt;&gt; value &quot;127.0.0.1&quot;
+        &lt;&gt; metavar &quot;STRING&quot;)
+    &lt;*&gt; option auto
+        ( long &quot;port&quot;
+        &lt;&gt; short 'p'
+        &lt;&gt; help &quot;A port where the server will listen to&quot;
+        &lt;&gt; showDefault
+        &lt;&gt; value 4000
+        &lt;&gt; metavar &quot;INT&quot;)
+
+
+initState :: State
+initState = State 0 []
+
+
+mainLoop :: Socket -&gt; State -&gt; IO ()
+mainLoop sock state = do
+  conn &lt;- accept sock
+
+  let ip = snd conn
+  putStrLn $ &quot;[+] New connection: &quot; ++ show ip
+  let updatedState = State { connectedUsers = currentUsers + 1, sockets = currentSockets ++ [ip]}
+  putStrLn $ &quot;[+] State updated:\nUsers connected: &quot; ++ show (connectedUsers updatedState) ++ &quot;\nSockets connected: &quot;++ show (sockets updatedState)
+  forkIO (runConn conn)
+  mainLoop sock updatedState
+  where
+    currentUsers = connectedUsers state
+    currentSockets = sockets state
+
+
+
+runConn :: (Socket, SockAddr) -&gt; IO ()
+runConn (sock, _) = do
+  hdl &lt;- socketToHandle sock ReadWriteMode
+  hSetBuffering hdl NoBuffering
+  hPutStrLn hdl &quot;Hello!&quot;
+  hClose hdl
+
+
+main :: IO ()
+main = do
+  config &lt;- execParser opts
+  let userPort = port config
+  sock &lt;- socket AF_INET Stream 0
+  setSocketOption sock ReuseAddr 1
+  bind sock (SockAddrInet userPort iNADDR_ANY)
+  listen sock 2
+  putStrLn $ &quot;Listening for connections on port &quot; ++ show userPort ++ &quot;...&quot;
+  mainLoop sock initState
+
+  where
+  opts = info (serverOptions &lt;**&gt; helper)
+      ( fullDesc
+      &lt;&gt; progDesc &quot;Run a web server&quot;
+      &lt;&gt; header &quot;A command line application to run a TCP server on a given port.&quot; )</code></pre>
+    </section>
+</article>
+
+            </div>
+        </main>
+
+        <footer>
+            Site proudly generated by
+            <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+        </footer>
+    </body>
+</html>

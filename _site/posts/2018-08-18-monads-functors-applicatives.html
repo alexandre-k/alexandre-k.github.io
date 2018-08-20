@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link href="//cdn.muicss.com/mui-0.9.39/css/mui.min.css" rel="stylesheet" type="text/css" />
+        <script src="//cdn.muicss.com/mui-0.9.39/js/mui.min.js"></script>
+        <title>Blog - Basics about functors</title>
+        <link rel="stylesheet" href="../css/default.css" />
+    </head>
+    <body>
+        <header>
+            <div id="sidebar">
+                <div class="mui--text-light mui--text-display1 mui--align-vertical">
+                    <a href="../">Yet Another Blog</a>
+                </div>
+            </div>
+            <table width="50%">
+            <tr style="vertical-align:middle;">
+                <td class="mui--appbar-height"><a href="../">Home</a></td>
+                <td class="mui--appbar-height"><a href="../about.html">About</a></td>
+                <td class="mui--appbar-height"><a href="../contact.html">Contact</a></td>
+                <td class="mui--appbar-height"><a href="../archive.html">Archive</a></td>
+            </tr>
+            </table>
+        </header>
+
+        <main role="main">
+          <div class="mui-container">
+            <h1>Basics about functors</h1>
+            <article>
+    <section class="header">
+        Posted on August 18, 2018
+        
+    </section>
+    <section>
+        <h1 id="basics-about-functors">Basics about functors</h1>
+<h1 id="composing-functions-returning-values">Composing functions returning values</h1>
+<p>Let’s say we have 2 functions, one doubling a value, the other one tripling it. How would we easily compose it?</p>
+<pre><code>Prelude&gt; double x = x * 2
+Prelude&gt; triple x = x * 3
+Prelude&gt; double $ triple 2
+12</code></pre>
+<p>Easy peasy.</p>
+<p>But why not just use the dot operator?</p>
+<pre><code>Prelude&gt; (double . triple) 2
+12</code></pre>
+<p>Same shit, just we have to use parentheses to avoid an error.</p>
+<h1 id="composing-functions-with-wrapped-values">Composing functions with wrapped values</h1>
+<p>Now let’s say we got a casual function, and we got a wrapped value. How do we compose that?</p>
+<p>We reuse the same double and triple functions, and this time we feed it a <code>Just 5</code>.</p>
+<pre><code>Prelude&gt; double (Just 5)
+
+&lt;interactive&gt;:34:1: error:
+    • Non type-variable argument in the constraint: Num (Maybe a)
+      (Use FlexibleContexts to permit this)
+    • When checking the inferred type
+        it :: forall a. (Num a, Num (Maybe a)) =&gt; Maybe a</code></pre>
+<p>Houston, we’ve got a problem! Maybe values being actually instances of functors, we have to use <code>fmap</code>, or <code>&lt;$&gt;</code>, the infix operator for <code>fmap</code>.</p>
+<pre><code>Prelude&gt; fmap double (Just 5)
+Just 10</code></pre>
+<p>Or with the infix operator:</p>
+<pre><code>Prelude&gt; double &lt;$&gt; (Just 5)
+Just 10</code></pre>
+<p>Same shit.</p>
+<p>The point here is to remember that <code>fmap</code> is used when we want to apply a casual function and we want to feed it a wrapped value (functors under the hood).</p>
+<p>Like byte strings in Python displayed as letters, it is under the hood just bytes, and displayed as letters to appear more user-friendly. Here, we are dealing with functors, even though it is displayed as a friendly <code>Just 10</code>.</p>
+<p>Note that fmap would fail with primitive values, since it can only be used with wrapped values (that is, functors):</p>
+<pre><code>Prelude&gt; (triple . double) &lt;$&gt; (Just 4)
+Just 24
+Prelude&gt; (triple . double) &lt;$&gt; 4
+
+&lt;interactive&gt;:69:1: error:
+    • Ambiguous type variable ‘f0’ arising from a use of ‘print’
+      prevents the constraint ‘(Show (f0 Integer))’ from being solved.
+      Probable fix: use a type annotation to specify what ‘f0’ should be.
+      These potential instances exist:
+        instance Show a =&gt; Show (Maybe a) -- Defined in ‘GHC.Show’
+        instance (Show a, Show b) =&gt; Show (a, b) -- Defined in ‘GHC.Show’
+        instance (Show a, Show b, Show c) =&gt; Show (a, b, c)
+          -- Defined in ‘GHC.Show’
+        ...plus 13 others
+        ...plus two instances involving out-of-scope types
+        (use -fprint-potential-instances to see them all)
+    • In a stmt of an interactive GHCi command: print it
+</code></pre>
+<h1 id="composing-functions-with-multiple-wrapped-values">Composing functions with multiple wrapped values</h1>
+<p>Now with wrapped values only, we got two wrapped values, we want to add it:</p>
+<pre><code>Prelude&gt; pure (+) &lt;*&gt; Just 5 &lt;*&gt; Just 5
+Just 10</code></pre>
+<p>We used the applicative to add 2 functors. This is basically the example from the online book <a href="http://learnyouahaskell.com/functors-applicative-functors-and-monoids">Learn you a Haskell</a>.</p>
+<p>But the point is, it works for many things like lists, which are functors too under the hood. So let’s say we want to double each element of a list, we can apply it sequentially:</p>
+<pre><code>Prelude&gt; pure double &lt;*&gt; [1,2,3]
+[2,4,6]</code></pre>
+<p>Nice!</p>
+<p>So let’s see a more practical use case of applicative functors. Let’s say our <code>double</code> function now takes 2 arguments. I want to apply to it multiple wrapped arguments. We redefine the double function so that it takes 2 arguments, and then we apply to this function 2 arguments with <code>&lt;*&gt;</code>.</p>
+<pre><code>Prelude&gt; double x y = x * y
+Prelude&gt; pure double &lt;*&gt; Just 2 &lt;*&gt; Just 6
+Just 12</code></pre>
+<p>I still have to figure out useful ways to use pure and the <code>&lt;*&gt;</code> operator.</p>
+<h1 id="composing-functions-returning-wrapped-values">Composing functions returning wrapped values</h1>
+<p>I have a double function returning a Maybe value.</p>
+<pre><code>stack exec -- ghci
+GHCi, version 8.4.3: http://www.haskell.org/ghc/  :? for help
+Prelude&gt; double x = Just ( x * 2 )
+Prelude&gt; double 2
+Just 4</code></pre>
+<p><code>double 2</code> returns <code>Just 4</code>. Let’s say I also got a triple function.</p>
+<pre><code>Prelude&gt; triple x = Just ( 3 * x )
+Prelude&gt; triple 5
+Just 15</code></pre>
+<p><code>triple 5</code> gives <code>Just 15</code>, nothing crazy. But now I want to triple and then double a value. For that, we use <code>=&lt;&lt;</code>, the bind operator.</p>
+<pre><code>Prelude&gt; double =&lt;&lt; triple 2
+Just 12
+</code></pre>
+<p>Or in the oppposite direction, same shit:</p>
+<pre><code>Prelude&gt; triple 2 &gt;&gt;= double
+Just 12</code></pre>
+<p>We could have used fmap for that, but it would have given us something we don’t want:</p>
+<pre><code>Prelude&gt; double &lt;$&gt; triple 2
+Just (Just 12)</code></pre>
+<p>After callback hells, we got a “Maybe hell”.</p>
+<p>So basically, we applied an operator to functions which return wrapped values, not just a primitive type like integer, char or whatever. <a href="http://adit.io/posts/2013-04-17-functors,_applicatives,_and_monads_in_pictures.html#monads">This bind operator was a monad, something used for functions returning wrapped values, nothing else, nothing more.</a></p>
+    </section>
+</article>
+
+            </div>
+        </main>
+
+        <footer>
+            Site proudly generated by
+            <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+        </footer>
+    </body>
+</html>
