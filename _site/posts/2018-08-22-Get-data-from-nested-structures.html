@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link href="//cdn.muicss.com/mui-0.9.39/css/mui.min.css" rel="stylesheet" type="text/css" />
+        <script src="//cdn.muicss.com/mui-0.9.39/js/mui.min.js"></script>
+        <title>Blog - Getting data from nested structures</title>
+        <link rel="stylesheet" href="../css/default.css" />
+    </head>
+    <body>
+        <header>
+            <div id="sidebar">
+                <div class="mui--text-light mui--text-display1 mui--align-vertical">
+                    <a href="../">Yet Another Blog</a>
+                </div>
+            </div>
+            <table width="50%">
+            <tr style="vertical-align:middle;">
+                <td class="mui--appbar-height"><a href="../">Home</a></td>
+                <td class="mui--appbar-height"><a href="../about.html">About</a></td>
+                <td class="mui--appbar-height"><a href="../contact.html">Contact</a></td>
+                <td class="mui--appbar-height"><a href="../archive.html">Archive</a></td>
+            </tr>
+            </table>
+        </header>
+
+        <main role="main">
+          <div class="mui-container">
+            <h1>Getting data from nested structures</h1>
+            <article>
+    <section class="header">
+        Posted on August 22, 2018
+        
+    </section>
+    <section>
+        <h1 id="basics-about-lenses">Basics about lenses</h1>
+<h1 id="getting-data-from-nested-structures-without-lenses">Getting data from nested structures without lenses</h1>
+<p>Getting data from nested structures can get pretty complicated. In Python if we had to get data from nested dictionaries, we would do something like:</p>
+<pre><code>whateverdic['alex']['address']['street']</code></pre>
+<p>And to update it, we would do use the assigment operator to assign a new value. But we don’t do it like this in Haskell. How should we do, then?</p>
+<p>Let’s say we want to define a person having an address. We could do it like this:</p>
+<pre><code>data Address = Address { street :: String, city :: String } deriving Show
+data Person = Person { name :: String, address :: Address } deriving Show</code></pre>
+<p>Then, we want to show the data. For this, we would have to grab the data with pattern matching, by writing down the shape of the structure we want to get the data from, like this:</p>
+<pre><code>showPerson :: Person -&gt; String
+showPerson (Person name (Address street city)) = &quot;Name: &quot; ++ name ++ &quot;, living in &quot; ++ street ++ &quot;, &quot; ++ city</code></pre>
+<p>To update it, we could use intermediate variables to hold the point we are at each step we delve into the nested structure, like this:</p>
+<pre><code>updatePerson :: Person -&gt; String -&gt; String -&gt; Person
+updatePerson person newStreet newCity = person { address = Address newStreet newCity}</code></pre>
+<p>This way could get more cumbersome with a more complex structure. Another way would be to use the same kind of pattern matching we used earlier to update the data with new values, like this:</p>
+<pre><code>updatePerson2 :: Person -&gt; String -&gt; String -&gt; Person
+updatePerson2 (Person name (Address street city)) newStreet newCity = Person name (Address newStreet newCity)</code></pre>
+<p>But in any cases, this kind of way would not be easy to maintain with the growth of the data structure used. How do we solve this problem of accessibility of complex structures? We use lenses.</p>
+<h1 id="get-and-set-nested-data-with-lenses">Get and set nested data with lenses</h1>
+<p>Ok so in order to make any confusion, we will use the notation <code>'</code> after each name. In order to show the flexibility of lenses, we will also add another data type, the <code>Location'</code> of a person:</p>
+<pre><code>data Location' = Location' { _planet' :: String, _country' :: String } deriving Show
+data Address' = Address' { _street' :: String, _city' :: String, _location' :: Location' } deriving Show
+data Person' = Person' { _name' :: String, _address' :: Address' } deriving Show
+</code></pre>
+<p>It’s a detail, but you’ll notice I added <code>Location</code>, it is just to get a more complex structure. As you can see, each field has an underscore. According to the guy behind <a href="https://mmhaskell.com/blog/2017/6/12/taking-a-close-look-at-lenses">Monday Morning Haskell</a>, it is a convention. It is necessary to avoid any collision of names inside the same namespace. To create lenses for each data type, we use <code>makeLenses</code>:</p>
+<pre><code>makeLenses ''Location'
+makeLenses ''Address'
+makeLenses ''Person'</code></pre>
+<p>Once we’ve done that, we can use it to get or set data. Let’s create some functions to get specific data:</p>
+<pre><code>showPerson' :: Person' -&gt; String
+showPerson' person = &quot;Name: &quot; ++ person ^. name' ++ &quot;, living in &quot; ++ person ^. address' ^. street' ++ &quot;, &quot; ++ person ^. address' ^. city'</code></pre>
+<p>We used the operator <code>^.</code> to abbreviate view. It is the same thing, so we can use <code>view</code> instead. In the following examples I used it to get the city, country and planet from our person data structure:</p>
+<pre><code>getCity' :: Person' -&gt; String
+getCity' person = view (address' . city') person
+
+getCountry' :: Person' -&gt; String
+getCountry' person = view (address' . location' . country' ) person
+
+getPlanet' :: Person' -&gt; String
+getPlanet' person = view (address' . location' . planet') person</code></pre>
+<p>Quite simple, huh? I like the composition style of the functions, it makes it easy to follow where we get the data from.</p>
+<p>We got some data, but now let’s say we want to update it. How do we do it? We use the set function.</p>
+<pre><code>updatePerson' :: Person' -&gt; String -&gt; Person'
+updatePerson' person newCity = set (address' . city') newCity person</code></pre>
+<p>Here I used the set function, indicated what should be updated, passed the newCity argument, and then indicate the <code>Person'</code> argument where we update the data structure. Notice a new object will be returned since everything is immutable.</p>
+<p>Ok, but we want to have a way to update several values in one function, how to do that? Easy. with the operator <code>&amp;</code>, which is the inverse of <code>$</code>:</p>
+<pre><code>updatePerson2' :: Person' -&gt; String -&gt; String -&gt; Person'
+updatePerson2' person newPlanet newCountry =
+  person
+  &amp; set (address' . location' . planet') newPlanet
+  &amp; set (address' . location' . country') newCountry</code></pre>
+<p>Here we set a new planet and a new country to our person by using set again, but do it in a row thanks to <code>&amp;</code>.</p>
+<p>You can update data not only with set but also with over to pass a function, you can update it in a transversal way, update a <code>Maybe</code> data kind, etc. If you want to know more this, the best resource I found is an article on Medium, <a href="https://medium.com/urbint-engineering/haskell-lens-operator-onboarding-a235481e8fac">Haskell Lens Operator Onboarding</a>, written by Russel Matney. He goes into many details, and his article is really great for more details on how to use lenses. Once you read it, you can read <a href="http://hackage.haskell.org/package/lens-tutorial-1.0.3/docs/Control-Lens-Tutorial.html">the tutorial</a> on Hackage if you want yet more detailed information on how things work.</p>
+<h1 id="whole-source-code">Whole source code</h1>
+<p>The whole source code for the small examples above is here:</p>
+<pre><code>{-# LANGUAGE TemplateHaskell #-}
+
+module Main where
+
+import Control.Lens
+
+data Location' = Location' { _planet' :: String, _country' :: String } deriving Show
+data Address' = Address' { _street' :: String, _city' :: String, _location' :: Location' } deriving Show
+data Person' = Person' { _name' :: String, _address' :: Address' } deriving Show
+
+makeLenses ''Location'
+makeLenses ''Address'
+makeLenses ''Person'
+
+showPerson' :: Person' -&gt; String
+showPerson' person = &quot;Name: &quot; ++ person ^. name' ++ &quot;, living in &quot; ++ person ^. address' ^. street' ++ &quot;, &quot; ++ person ^. address' ^. city'
+
+getCity' :: Person' -&gt; String
+getCity' person = view (address' . city') person
+
+getCountry' :: Person' -&gt; String
+getCountry' person = view (address' . location' . country' ) person
+
+getPlanet' :: Person' -&gt; String
+getPlanet' person = view (address' . location' . planet') person
+
+updatePerson' :: Person' -&gt; String -&gt; Person'
+updatePerson' person newCity = set (address' . city') newCity person
+
+updatePerson2' :: Person' -&gt; String -&gt; String -&gt; Person'
+updatePerson2' person newPlanet newCountry =
+  person
+  &amp; set (address' . location' . planet') newPlanet
+  &amp; set (address' . location' . country') newCountry
+
+data Address = Address { street :: String, city :: String } deriving Show
+data Person = Person { name :: String, address :: Address } deriving Show
+
+showPerson :: Person -&gt; String
+showPerson (Person name (Address street city)) = &quot;Name: &quot; ++ name ++ &quot;, living in &quot; ++ street ++ &quot;, &quot; ++ city
+
+updatePerson :: Person -&gt; String -&gt; String -&gt; Person
+updatePerson person newStreet newCity = person { address = Address newStreet newCity}
+  where
+    oldName = name person
+
+updatePerson2 :: Person -&gt; String -&gt; String -&gt; Person
+updatePerson2 (Person name (Address street city)) newStreet newCity = Person name (Address newStreet newCity)
+
+getCity :: Person -&gt; String
+getCity person = city pAddress
+  where
+    pAddress = address person
+
+
+main = do
+  putStrLn $ &quot;Person without lens: &quot; ++ showPerson person
+  putStrLn $ &quot;Person' with lens: &quot; ++ showPerson' person'
+  putStrLn $ &quot;City without lens: &quot; ++ getCity person
+  putStrLn $ &quot;City with lens: &quot; ++ getCity' person'
+  putStrLn $ &quot;Country with lens: &quot; ++ getCountry' person'
+  putStrLn $ &quot;Update without lens: &quot; ++ showPerson newPerson
+  putStrLn $ &quot;Update2 without lens: &quot; ++ showPerson newPerson2
+  putStrLn $ &quot;Update' with lens: &quot; ++ showPerson' newPerson'
+  putStrLn $ &quot;Update2' with lens: &quot; ++ getCountry' newPerson2' ++ &quot; on &quot; ++ getPlanet' newPerson2'
+  -- putStrLn $ show $ updatePerson $ person &quot;somewhere else&quot; &quot;Nagoya&quot;
+  -- putStrLn $ &quot;New person without lens: &quot; ++ show $
+  -- putStrLn $ &quot;Person with lens: &quot; ++ showPerson' newPerson
+
+  -- putStrLn $
+  -- putStrLn $ &quot;Nested city with lens: &quot; ++ getCity' newPerson
+  -- putStrLn $ &quot;Nested street with lens: &quot; ++ getStreet' newPerson
+
+  where
+    person = Person &quot;Alex&quot; (Address &quot;Tateishi&quot; &quot;Tokyo&quot;)
+    person' = Person' &quot;Alex'&quot; (Address' &quot;Tateishi'&quot; &quot;Tokyo'&quot; (Location' &quot;Earth&quot; &quot;Japan&quot;))
+    newPerson = updatePerson person &quot;somewhere&quot; &quot;Osaka&quot;
+    newPerson2 = updatePerson2 person &quot;somewhere else&quot; &quot;Nagoya&quot;
+    newPerson' = updatePerson' person' &quot;Fukuoka&quot;
+    newPerson2' = updatePerson2' person' &quot;Jupiter&quot; &quot;China&quot;</code></pre>
+    </section>
+</article>
+
+            </div>
+        </main>
+
+        <footer>
+            Site proudly generated by
+            <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+        </footer>
+    </body>
+</html>
