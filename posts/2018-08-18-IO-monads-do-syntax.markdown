@@ -1,5 +1,5 @@
 ---
-title: Basics about functors
+title: Basics about IO Monads, transformers and do syntax
 ---
 
 # Basics about IO Monads, transformers and do syntax

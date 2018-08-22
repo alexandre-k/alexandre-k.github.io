@@ -1,5 +1,5 @@
 ---
-title: Basics about functors
+title: Managing a global state in an application
 ---
 
 # Managing a global state
