@@ -1,5 +1,7 @@
 ---
 title: Applicative and monadic styles
+author: Alexandre Krispin
+date: Sat 25 Aug 2018 02:35:58 PM JST
 tags: monad, applicative, haskell, return, do, fmap, apply
 ---
 

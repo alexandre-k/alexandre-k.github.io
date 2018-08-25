@@ -1,5 +1,8 @@
 ---
 title: Managing a global state in an application
+author: Alexandre Krispin
+date: Sat 25 Aug 2018 02:38:56 PM JST
+tags: state, applicative, Haskell
 ---
 
 # Managing a global state

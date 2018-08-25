@@ -1,5 +1,8 @@
 ---
 title: Getting data from nested structures
+author: Alexandre Krispin
+date: Sat 25 Aug 2018 02:35:41 PM JST
+tags: lens, Haskell, json, nested, data structure, record
 ---
 
 # Basics about lenses

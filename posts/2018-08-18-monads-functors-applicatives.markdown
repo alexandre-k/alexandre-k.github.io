@@ -1,5 +1,8 @@
 ---
 title: Basics about functors
+author: Alexandre Krispin
+date: Sat 25 Aug 2018 02:37:18 PM JST
+tags: functors, composition, function, Haskell, wrapped value, fmap, pure, apply
 ---
 
 # Basics about functors
