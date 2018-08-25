@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link href="//cdn.muicss.com/mui-0.9.39/css/mui.min.css" rel="stylesheet" type="text/css" />
+        <script src="//cdn.muicss.com/mui-0.9.39/js/mui.min.js"></script>
+        <title>Blog - Applicative and monadic styles</title>
+        <link rel="stylesheet" href="../css/default.css" />
+    </head>
+    <body>
+        <header>
+            <div id="sidebar">
+                <div class="mui--text-light mui--text-display1 mui--align-vertical">
+                    <a href="../">Yet Another Blog</a>
+                </div>
+            </div>
+            <table width="50%">
+            <tr style="vertical-align:middle;">
+                <td class="mui--appbar-height"><a href="../">Home</a></td>
+                <td class="mui--appbar-height"><a href="../about.html">About</a></td>
+                <td class="mui--appbar-height"><a href="../contact.html">Contact</a></td>
+                <td class="mui--appbar-height"><a href="../archive.html">Archive</a></td>
+            </tr>
+            </table>
+        </header>
+
+        <main role="main">
+          <div class="mui-container">
+            <h1>Applicative and monadic styles</h1>
+            <article>
+    <section class="header">
+        Posted on August 25, 2018
+        
+            by Alexandre Krispin
+        
+    </section>
+    <section class="info">
+      
+      Tags: <a href="../tags/monad.html">monad</a>, <a href="../tags/applicative.html">applicative</a>, <a href="../tags/haskell.html">haskell</a>, <a href="../tags/return.html">return</a>, <a href="../tags/do.html">do</a>, <a href="../tags/fmap.html">fmap</a>, <a href="../tags/apply.html">apply</a>
+      
+    </section>
+    <section>
+        <h1 id="applicative-and-monatid-styles">Applicative and monatid styles</h1>
+<h1 id="fmap-and-return">Fmap and Return</h1>
+<p>Coming from Python, I needed some time to wrap my mind around <code>return</code>. It has nothing to do with <code>return</code> in Python.</p>
+<p>Let us say we want to compute an age any given integer entered from the command line. We could use the <code>fmap</code> function:</p>
+<pre><code>
+displayAge :: Maybe Integer -&gt; IO ()
+displayAge age =
+  case age of
+    Nothing -&gt; putStrLn &quot;You did not enter a valid date&quot;
+    Just theYear -&gt; putStrLn $ &quot;In 2020 you will be &quot; ++ show theYear
+
+
+computeAge :: Integer -&gt; Integer
+computeAge year = 2020 - year
+
+main :: IO ()
+main = do
+  putStrLn &quot;Enter you birth date:&quot;
+  year &lt;- getLine
+  let computedAge = fmap computeAge (readMay year :: Maybe Integer)
+  displayAge computedAge</code></pre>
+<p>In this example, we use <code>fmap</code> to compute a value wrapped up inside a <code>Maybe</code>. It won’t compute anything if it is Nothing. Then it would display “You did not enter a valid date”. <code>fmap</code> is really a powerful way in Haskell to easily get around a wrapped value and make any computation given a value.</p>
+<p>The other equivalent way is the do-notation, where instead of using <code>fmap</code> we unwrap a value with the slurp operator, <code>&lt;-</code>, and then feed it to <code>return</code>, which is actually a function, not just a keyword to return a value like in Python. So the following bit is strictly equivalent to the previous one:</p>
+<pre><code>displayAge :: Maybe Integer -&gt; IO ()
+displayAge age =
+  case age of
+    Nothing -&gt; putStrLn &quot;You did not enter a valid date&quot;
+    Just theYear -&gt; putStrLn $ &quot;In 2020 you will be &quot; ++ show theYear
+
+computeAge :: Integer -&gt; Integer
+computeAge year = 2020 - year
+
+main :: IO ()
+main = do
+  putStrLn &quot;Enter you birth date:&quot;
+  year &lt;- getLine
+  let computedAge = do
+        theYear &lt;- readMay year :: Maybe Integer
+        return $ computeAge theYear
+  displayAge computedAge</code></pre>
+<p>The do-notation being used only in the case of Monads. Further explanations are in <a href="https://www.schoolofhaskell.com/school/advanced-haskell/functors-applicative-functors-and-monads">this wonderful post</a>.</p>
+<h1 id="monadic-vs-applicative">Monadic vs applicative</h1>
+<p>Now if we want to pass several arguments to our computeAge function, we would use multiple times the slurp operator in our do block. Nothing fancy here:</p>
+<pre><code>displayAge :: Maybe Integer -&gt; IO ()
+displayAge age =
+  case age of
+    Nothing -&gt; putStrLn &quot;You did not enter a valid date&quot;
+    Just theYear -&gt; putStrLn $ &quot;In 2020 you will be &quot; ++ show theYear
+
+computeAge :: Integer -&gt; Integer -&gt; Integer
+computeAge futureYear year = futureYear - year
+
+main :: IO ()
+main = do
+  putStrLn &quot;Enter you birth date:&quot;
+  year &lt;- getLine
+  putStrLn &quot;Enter a future year&quot;
+  futureYear &lt;- getLine
+  let computedAge = do
+        theYear &lt;- readMay year :: Maybe Integer
+        theFutureYear &lt;- readMay futureYear :: Maybe Integer
+        return $ computeAge theFutureYear theYear
+  displayAge computedAge</code></pre>
+<p>As I said, nothing fancy, quite a beginner-friendly way of using wrapped values.</p>
+<p>Now let’s say we want to use <code>fmap</code>. It basically takes one function and one <code>Maybe Integer</code> to return one <code>Maybe a</code>. So to use fmap, we would need to curry the function or to use apply, the <code>&lt;*&gt;</code> operator in Haskell. Why? The apply operator, <code>&lt;*&gt;</code>, apply a function inside a functor (think of <code>computeAge</code> as a curried function) to a value inside a functor (our <code>Maybe Integer</code>).</p>
+<p>Then our previous code in the monadic style would become this, in an applicative style:</p>
+<pre><code>displayAge :: Maybe Integer -&gt; IO ()
+displayAge age =
+  case age of
+    Nothing -&gt; putStrLn &quot;You did not enter a valid date&quot;
+    Just theYear -&gt; putStrLn $ &quot;In 2020 you will be &quot; ++ show theYear
+
+computeAge :: Integer -&gt; Integer -&gt; Integer
+computeAge futureYear year = futureYear - year
+
+main :: IO ()
+main = do
+  putStrLn &quot;Enter you birth date:&quot;
+  year &lt;- getLine
+  putStrLn &quot;Enter a future year&quot;
+  futureYear &lt;- getLine
+  let theYear = readMay year :: Maybe Integer
+  let theFutureYear = readMay futureYear :: Maybe Integer
+  let computedAge = fmap computeAge theFutureYear
+                        &lt;*&gt; theYear
+  displayAge computedAge
+</code></pre>
+<p>Not so much beginner friendly style I would say, although it looks nice if we replace <code>fmap</code> with its infix equivalent, <code>&lt;$&gt;</code>:</p>
+<pre><code>let computedAge = computeAge
+                        &lt;$&gt; theFutureYear
+                        &lt;*&gt; theYear</code></pre>
+<h1 id="to-lift-or-not-to-lift">To lift or not to lift</h1>
+<p>Altough we could stop here, let us rewrite our monadic version with <code>liftM2</code>:</p>
+<pre><code>main :: IO ()
+main = do
+  putStrLn &quot;Enter you birth date:&quot;
+  year &lt;- getLine
+  putStrLn &quot;Enter a future year&quot;
+  futureYear &lt;- getLine
+  displayAge $ liftM2 computeAge (readMay futureYear :: Maybe Integer)
+                                 (readMay year :: Maybe Integer)</code></pre>
+<p>This is strictly equivalent to what we did before. I just applied <code>liftM2</code> to replace the do notation. Since I have a <code>Maybe</code> type and the monadic actions depend on the previous one, I use <code>liftM2</code> instead of <code>liftM</code>. See <a href="https://wiki.haskell.org/Applicative_functor">the wiki</a> for more details.</p>
+<p>Still, what is the purpose of lifting something in Haskell? Will see that in a next post.</p>
+    </section>
+</article>
+
+            </div>
+        </main>
+
+        <footer>
+            Site proudly generated by
+            <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+        </footer>
+    </body>
+</html>
