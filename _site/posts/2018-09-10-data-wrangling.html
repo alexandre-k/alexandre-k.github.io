@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link href="//cdn.muicss.com/mui-0.9.39/css/mui.min.css" rel="stylesheet" type="text/css" />
+        <script src="//cdn.muicss.com/mui-0.9.39/js/mui.min.js"></script>
+        <title>Blog - Data wrangling with Clojure</title>
+        <link rel="stylesheet" href="../css/default.css" />
+    </head>
+    <body>
+        <header>
+            <div id="sidebar">
+                <div class="mui--text-light mui--text-display1 mui--align-vertical">
+                    <a href="../">Yet Another Blog</a>
+                </div>
+            </div>
+            <table width="50%">
+            <tr style="vertical-align:middle;">
+                <td class="mui--appbar-height"><a href="../">Home</a></td>
+                <td class="mui--appbar-height"><a href="../about.html">About</a></td>
+                <td class="mui--appbar-height"><a href="../contact.html">Contact</a></td>
+                <td class="mui--appbar-height"><a href="../archive.html">Archive</a></td>
+            </tr>
+            </table>
+        </header>
+
+        <main role="main">
+          <div class="mui-container">
+            <h1>Data wrangling with Clojure</h1>
+            <article>
+    <section class="header">
+        Posted on September 10, 2018
+        
+            by Alexandre Krispin
+        
+    </section>
+    <section class="info">
+      
+      Tags: <a href="../tags/data.html">data</a>, <a href="../tags/clojure.html">clojure</a>, <a href="../tags/group-by.html">group-by</a>, <a href="../tags/parse.html">parse</a>
+      
+    </section>
+    <section>
+        <h1 id="parsing-data-inside-a-json-data-structure">Parsing data inside a JSON data structure</h1>
+<p>Let’s say we did a GET request to a server and we got back data with dates. If we want to use it to display a graph with the time in x-axis, you’ll probably have to parse it. And now let’s say we have this data:</p>
+<pre><code>(def data
+  (walk/keywordize-keys [{&quot;name&quot; &quot;Alex&quot; &quot;age&quot; 32 &quot;updated&quot; &quot;2018-09-03T12:29:14+00:00&quot;}
+                         {&quot;name&quot; &quot;Joe&quot; &quot;age&quot; 26 &quot;updated&quot; &quot;2018-09-02T14:45:38+00:00&quot;}]))</code></pre>
+<p>If we want to transform <code>2018-09-02T14:45:38+00:00</code> as <code>2018-09-02</code>, we would have to split our date at <code>T</code> and take the first part of the resulting expression:</p>
+<pre><code>(defn parse-date [raw-date]
+  (first (str/split raw-date #&quot;T&quot;)))</code></pre>
+<p>Then we can map our new function to each json object in our array with the <code>update-in</code> function to apply our parse-date only to dates.</p>
+<pre><code>(defn format-data
+  [raw-data]
+  (map #(update-in % [:updated] parse-date) raw-data))</code></pre>
+<p>The resulting data would be just as expected:</p>
+<pre><code>user&gt; (format-data data)
+({:name Alex, :age 32, :updated 2018-09-03} {:name Joe, :age 26, :updated 2018-09-02})</code></pre>
+<p>OK, great. But now we have an other kind of necessity, to group data by dates. For that, let’s say we have this kind of query as a new data:</p>
+<pre><code>(def queries
+  [{:url &quot;www.google.com&quot; :fetched &quot;2018-09-02&quot;}
+   {:url &quot;www.google.com&quot; :fetched &quot;2018-09-02&quot;}
+   {:url &quot;www.yahoo.com&quot; :fetched &quot;2018-09-01&quot;}
+   {:url &quot;www.facebook.com&quot; :fetched &quot;2018-09-01&quot;}])</code></pre>
+<p>We want to get the views of each website per fetched date. Thanks to the very useful function <code>group-by</code>, it is easy peasy to do:</p>
+<pre><code>user&gt; (group-by :fetched queries))
+{2018-09-02 [{:url www.google.com, :fetched 2018-09-02}
+             {:url www.google.com, :fetched 2018-09-02}],
+ 2018-09-01 [{:url www.yahoo.com, :fetched 2018-09-01}
+             {:url www.facebook.com, :fetched 2018-09-01}]}</code></pre>
+<p>It is a good starting point, but still we have redundant data now, and we still don’t know the number of views per day.</p>
+<p>So what we want now is a function parsing our transformed data, get for each url a count and associate it to a new hash map to easily access it later on.</p>
+<pre><code>(defn get-urls
+  [raw-data]
+  (hash-map (first raw-data) (map :url (second raw-data))
+            :count (count (map :url (second raw-data)))
+            ))</code></pre>
+<p>That’s it, now if we map our function <code>get-urls</code> to our previous grouped queries, we will have the number of views per day:</p>
+<pre><code>user&gt; (map get-urls grouped-queries)
+{2018-09-02 (www.google.com www.google.com), :count 2}
+{2018-09-01 (www.yahoo.com www.facebook.com), :count 2})</code></pre>
+<h1 id="handling-data-with-sqlite">Handling data with SQLite</h1>
+<p>What I like the most with Clojure is its simplicity for manipulating data structures, any sort of data. Let’s say we want to convert our data as a sql database. Nothing more easier than that with Clojure.</p>
+<p>We would create a pool to connect to our database with JDBC:</p>
+<pre><code>(def my-db {:classname &quot;org.sqlite.JDBC&quot;
+              :subprotocol &quot;sqlite&quot;
+              :subname &quot;whatever_name.db&quot;})</code></pre>
+<p>Then to query it, we would use <code>select</code>. If we want to insert data, we would do it by indicating the right pool, the right table to write into new data, and the said data.</p>
+<pre><code>(def sql-data
+  (jdbc/query my-db (sql/select * :some-table)))
+
+(defn insert-data
+  [data]
+  (jdbc/insert! my-db :some-table data))</code></pre>
+<p>Easy peasy, I like it much than the way things are done in Python.</p>
+    </section>
+</article>
+
+            </div>
+        </main>
+
+        <footer>
+            Site proudly generated by
+            <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+        </footer>
+    </body>
+</html>
